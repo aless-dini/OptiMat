@@ -224,3 +224,6 @@ __marimo__/
 
 # Editor
 .vscode/
+
+# Grafico generado por main.py
+alertas.png

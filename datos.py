@@ -49,12 +49,36 @@ TARIFAS = [1500, 2500, 4000]
 #               Teclados  Monitores  Mouse  Notebooks
 STOCK_BODEGA = [110, 35, 125, 9]
 
-# HISTORIAL DE VENTAS de los ultimos 6 meses (unidades vendidas en total,
-# sumando todos los clientes). Una fila por producto, una columna por mes.
-#           mes1 mes2 mes3 mes4 mes5 mes6
-HISTORIAL_VENTAS = [
-    [80, 95, 90, 85, 100, 92],    # Teclados
-    [25, 30, 28, 32, 27, 30],     # Monitores
-    [120, 130, 125, 140, 135, 128],  # Mouse
-    [15, 18, 20, 16, 19, 22],     # Notebooks
+# VENTAS de los ultimos 6 meses: ARREGLO MULTIDIMENSIONAL de 3 indices.
+#     VENTAS[i][j][k] = unidades del producto i vendidas al cliente j en el mes k
+# Dimensiones: 4 productos x 3 clientes x 6 meses (72 datos).
+# Se puede ver como 4 matrices (una por producto) de 3 clientes x 6 meses.
+#                 mes1 mes2 mes3 mes4 mes5 mes6
+VENTAS = [
+    [   # Teclados
+        [35, 44, 40, 39, 44, 42],   # Cliente A
+        [23, 28, 27, 24, 30, 28],   # Cliente B
+        [22, 23, 23, 22, 26, 22],   # Cliente C
+    ],
+    [   # Monitores
+        [9, 13, 10, 14, 10, 13],
+        [7, 10, 9, 10, 9, 10],
+        [9, 7, 9, 8, 8, 7],
+    ],
+    [   # Mouse
+        [49, 56, 52, 60, 56, 55],
+        [35, 39, 38, 41, 40, 38],
+        [36, 35, 35, 39, 39, 35],
+    ],
+    [   # Notebooks
+        [6, 9, 8, 8, 8, 11],
+        [3, 4, 5, 3, 5, 6],
+        [6, 5, 7, 5, 6, 5],
+    ],
 ]
+
+# UMBRALES del semaforo de stock, en DIAS DE COBERTURA (cuantos dias alcanza
+# el stock de la bodega al ritmo de venta actual).
+#   verde: 30 dias o mas | amarillo: desde 20 hasta menos de 30 | rojo: menos de 20
+UMBRAL_VERDE = 30
+UMBRAL_AMARILLO = 20

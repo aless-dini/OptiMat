@@ -182,3 +182,103 @@ def detectar_riesgo_quiebre(stock_bodega, demandas):
     for i in range(len(demandas)):
         riesgos.append(bool(vector_bodega[i] < demandas[i]))
     return riesgos
+
+
+def resumir_ventas(ventas):
+    """
+    Resume el arreglo de ventas de 3 dimensiones (ARREGLO MULTIDIMENSIONAL
+    y SUMATORIA POR EJE).
+
+    ventas[i][j][k] = unidades del producto i vendidas al cliente j en el mes k.
+    Sumar sobre un eje elimina esa dimension:
+        ventas_por_mes[i][k]     = Σ_j ventas[i][j][k]   (se suman los clientes)
+        ventas_por_cliente[i][j] = Σ_k ventas[i][j][k]   (se suman los meses)
+
+    Parametros:
+        ventas: arreglo productos x clientes x meses.
+
+    Retorna:
+        Tupla (ventas_por_mes, ventas_por_cliente):
+        matriz productos x meses y matriz productos x clientes.
+    """
+    arreglo_ventas = np.array(ventas)
+
+    # Debe tener exactamente 3 indices: producto, cliente y mes
+    if arreglo_ventas.ndim != 3:
+        raise ValueError(
+            f"Las ventas deben tener 3 dimensiones (producto, cliente, mes), "
+            f"pero tienen {arreglo_ventas.ndim}."
+        )
+    if arreglo_ventas.size == 0:
+        raise ValueError("El arreglo de ventas esta vacio.")
+
+    # axis=1 es el eje de los clientes; axis=2 es el eje de los meses
+    ventas_por_mes = arreglo_ventas.sum(axis=1)
+    ventas_por_cliente = arreglo_ventas.sum(axis=2)
+    return ventas_por_mes, ventas_por_cliente
+
+
+def calcular_cobertura(stock_bodega, demandas, dias_por_mes=30):
+    """
+    Calcula los dias de cobertura de cada producto: cuantos dias alcanza el
+    stock de la bodega al ritmo de venta actual (DIVISION / PROPORCION).
+
+    Formula para cada producto:
+        venta_diaria = demanda_mensual / dias_por_mes
+        cobertura    = stock_bodega / venta_diaria
+
+    Si un producto no tiene demanda, su stock nunca se agota (cobertura infinita).
+
+    Parametros:
+        stock_bodega: vector con las unidades disponibles de cada producto.
+        demandas: lista con la demanda mensual proyectada de cada producto.
+        dias_por_mes: cantidad de dias que se consideran en un mes.
+
+    Retorna:
+        Lista con los dias de cobertura de cada producto.
+    """
+    if len(stock_bodega) != len(demandas):
+        raise ValueError(
+            f"Hay {len(stock_bodega)} productos en bodega, pero "
+            f"{len(demandas)} valores de demanda."
+        )
+
+    coberturas = []
+    for i in range(len(demandas)):
+        if demandas[i] <= 0:
+            coberturas.append(float("inf"))
+        else:
+            venta_diaria = demandas[i] / dias_por_mes
+            coberturas.append(stock_bodega[i] / venta_diaria)
+    return coberturas
+
+
+def clasificar_alertas(coberturas, umbral_verde=30, umbral_amarillo=20):
+    """
+    Clasifica cada producto en un semaforo segun sus dias de cobertura
+    (DESIGUALDADES):
+
+        VERDE    si cobertura >= umbral_verde
+        AMARILLO si umbral_amarillo <= cobertura < umbral_verde
+        ROJO     si cobertura < umbral_amarillo
+
+    Parametros:
+        coberturas: lista con los dias de cobertura de cada producto.
+        umbral_verde: dias desde los que el stock se considera suficiente.
+        umbral_amarillo: dias bajo los que el stock es critico.
+
+    Retorna:
+        Lista con "VERDE", "AMARILLO" o "ROJO" para cada producto.
+    """
+    if umbral_amarillo >= umbral_verde:
+        raise ValueError("El umbral amarillo debe ser menor que el umbral verde.")
+
+    alertas = []
+    for dias in coberturas:
+        if dias >= umbral_verde:
+            alertas.append("VERDE")
+        elif dias >= umbral_amarillo:
+            alertas.append("AMARILLO")
+        else:
+            alertas.append("ROJO")
+    return alertas

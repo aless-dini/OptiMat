@@ -3,15 +3,16 @@ main.py
 -------
 Programa principal de OptiMat.
 
-Usa los datos de ejemplo de datos.py, aplica las funciones de calculos.py
-e imprime un reporte en la consola.
+Usa los datos de ejemplo de datos.py, aplica las funciones de calculos.py,
+imprime un reporte en la consola y guarda el grafico del semaforo de stock
+(graficos.py) en alertas.png.
 
 Ejecutar con:  python main.py
 """
 
 from datos import (
     PRODUCTOS, CLIENTES, CLIENTES_CORTO, PEDIDOS, ENTREGADO,
-    TARIFAS, STOCK_BODEGA, HISTORIAL_VENTAS,
+    TARIFAS, STOCK_BODEGA, VENTAS, UMBRAL_VERDE, UMBRAL_AMARILLO,
 )
 from calculos import (
     calcular_reposicion,
@@ -19,7 +20,11 @@ from calculos import (
     verificar_despacho,
     proyectar_demanda,
     detectar_riesgo_quiebre,
+    resumir_ventas,
+    calcular_cobertura,
+    clasificar_alertas,
 )
+from graficos import graficar_alertas
 
 
 def formato_pesos(valor):
@@ -46,8 +51,14 @@ def main():
 
     # 3. SUMATORIAS: total pendiente por producto, demanda proyectada y riesgo
     total_pendiente, faltantes = verificar_despacho(STOCK_BODEGA, reposicion)
-    demandas = proyectar_demanda(HISTORIAL_VENTAS)
+    # ARREGLO DE 3 DIMENSIONES: se suman los clientes o los meses
+    ventas_por_mes, ventas_por_cliente = resumir_ventas(VENTAS)
+    demandas = proyectar_demanda(ventas_por_mes)
     riesgos = detectar_riesgo_quiebre(STOCK_BODEGA, demandas)
+
+    # 4. SEMAFORO: dias de cobertura y su alerta
+    coberturas = calcular_cobertura(STOCK_BODEGA, demandas)
+    niveles = clasificar_alertas(coberturas, UMBRAL_VERDE, UMBRAL_AMARILLO)
 
     # ---------------- Reporte ----------------
     print("OptiMat - Reporte de despachos a clientes")
@@ -83,12 +94,41 @@ def main():
         estado = f"FALTAN {faltantes[i]}" if faltantes[i] > 0 else "ALCANZA"
         print(f"{producto:<12}{STOCK_BODEGA[i]:>8}{total_pendiente[i]:>11}  {estado}")
 
-    imprimir_titulo(f"4) Demanda proyectada (promedio de {len(HISTORIAL_VENTAS[0])} meses)")
+    n_meses = len(VENTAS[0][0])
+    imprimir_titulo(f"4) Demanda proyectada (promedio de {n_meses} meses)")
     print(f"{'Producto':<12}{'Bodega':>8}{'Demanda':>10}  Estado")
     print("-" * 50)
     for i, producto in enumerate(PRODUCTOS):
         estado = "RIESGO DE QUIEBRE" if riesgos[i] else "OK"
         print(f"{producto:<12}{STOCK_BODEGA[i]:>8}{demandas[i]:>10.1f}  {estado}")
+
+    imprimir_titulo(f"5) Ventas por cliente (suma de los {n_meses} meses)")
+    encabezado = f"{'Producto':<12}"
+    for cliente in CLIENTES_CORTO:
+        encabezado += f"{cliente:>11}"
+    encabezado += f"{'Total':>9}"
+    print(encabezado)
+    print("-" * len(encabezado))
+    for i, producto in enumerate(PRODUCTOS):
+        fila = f"{producto:<12}"
+        for j in range(len(CLIENTES)):
+            fila += f"{ventas_por_cliente[i][j]:>11}"
+        fila += f"{ventas_por_cliente[i].sum():>9}"
+        print(fila)
+
+    imprimir_titulo("6) Semaforo de stock (dias de cobertura)")
+    print(f"Verde: {UMBRAL_VERDE} dias o mas | Amarillo: {UMBRAL_AMARILLO} a {UMBRAL_VERDE} dias"
+          f" | Rojo: menos de {UMBRAL_AMARILLO} dias")
+    print()
+    print(f"{'Producto':<12}{'Bodega':>8}{'Demanda':>10}{'Dias':>8}  Alerta")
+    print("-" * 50)
+    for i, producto in enumerate(PRODUCTOS):
+        print(f"{producto:<12}{STOCK_BODEGA[i]:>8}{demandas[i]:>10.1f}"
+              f"{coberturas[i]:>8.1f}  {niveles[i]}")
+
+    archivo = graficar_alertas(PRODUCTOS, coberturas, niveles, UMBRAL_VERDE, UMBRAL_AMARILLO)
+    print()
+    print(f"Grafico del semaforo guardado en {archivo}")
 
     imprimir_titulo("Alertas")
     hay_alertas = False
