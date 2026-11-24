@@ -10,38 +10,38 @@ y no imprimen nada ni modifican variables globales.
 import numpy as np
 
 
-def calcular_reposicion(capacidad, stock):
+def calcular_reposicion(pedidos, entregado):
     """
-    Calcula la matriz de reposicion (RESTA DE MATRICES).
+    Calcula la matriz de despacho pendiente (RESTA DE MATRICES).
 
-    Formula:  R = C - S
-    donde C es la matriz de capacidad maxima y S la matriz de stock actual.
-    Cada elemento R[i][j] indica cuantas unidades del producto i hay que
-    enviar a la sucursal j para dejarla llena.
+    Formula:  R = P - E
+    donde P es la matriz de pedidos de los clientes y E la matriz de
+    unidades ya entregadas. Cada elemento R[i][j] indica cuantas unidades
+    del producto i faltan por enviar al cliente j.
 
     Parametros:
-        capacidad: matriz (lista de listas o arreglo NumPy) productos x sucursales.
-        stock: matriz con las mismas dimensiones que capacidad.
+        pedidos: matriz (lista de listas o arreglo NumPy) productos x clientes.
+        entregado: matriz con las mismas dimensiones que pedidos.
 
     Retorna:
-        Arreglo NumPy con la matriz de reposicion.
+        Arreglo NumPy con la matriz de despacho pendiente.
     """
-    matriz_capacidad = np.array(capacidad)
-    matriz_stock = np.array(stock)
+    matriz_pedidos = np.array(pedidos)
+    matriz_entregado = np.array(entregado)
 
     # Para restar dos matrices deben tener el mismo tamaño
-    if matriz_capacidad.shape != matriz_stock.shape:
+    if matriz_pedidos.shape != matriz_entregado.shape:
         raise ValueError(
-            f"Las matrices de capacidad {matriz_capacidad.shape} y de stock "
-            f"{matriz_stock.shape} deben tener las mismas dimensiones."
+            f"Las matrices de pedidos {matriz_pedidos.shape} y de entregas "
+            f"{matriz_entregado.shape} deben tener las mismas dimensiones."
         )
 
-    # El stock no puede superar la capacidad (daria una reposicion negativa)
-    if np.any(matriz_stock > matriz_capacidad):
-        raise ValueError("Hay stock mayor que la capacidad maxima en alguna sucursal.")
+    # No se puede haber entregado mas de lo pedido (daria un despacho negativo)
+    if np.any(matriz_entregado > matriz_pedidos):
+        raise ValueError("Hay un cliente con mas unidades entregadas que pedidas.")
 
     # Resta elemento a elemento
-    reposicion = matriz_capacidad - matriz_stock
+    reposicion = matriz_pedidos - matriz_entregado
     return reposicion
 
 
@@ -50,16 +50,16 @@ def calcular_costos(reposicion, tarifas):
     Calcula el costo de despacho (PRODUCTO MATRIZ x VECTOR).
 
     Formula:  costos = R * t
-    donde R es la matriz de reposicion (productos x sucursales) y t es el
-    vector de tarifas por unidad (una tarifa por sucursal).
+    donde R es la matriz de despacho pendiente (productos x clientes) y t es
+    el vector de tarifas por unidad (una tarifa por cliente).
     Cada componente del resultado es:
         costos[i] = R[i][0]*t[0] + R[i][1]*t[1] + ... (costo del producto i)
 
     El costo logistico total es la suma de todas las componentes del vector.
 
     Parametros:
-        reposicion: matriz productos x sucursales.
-        tarifas: vector con una tarifa por sucursal (columna).
+        reposicion: matriz productos x clientes.
+        tarifas: vector con una tarifa por cliente (columna).
 
     Retorna:
         Una tupla (vector_costos, costo_total).
@@ -70,7 +70,7 @@ def calcular_costos(reposicion, tarifas):
     # La cantidad de columnas de la matriz debe ser igual al largo del vector
     if matriz_reposicion.shape[1] != vector_tarifas.shape[0]:
         raise ValueError(
-            f"La matriz de reposicion tiene {matriz_reposicion.shape[1]} sucursales "
+            f"La matriz de despacho tiene {matriz_reposicion.shape[1]} clientes "
             f"(columnas), pero el vector de tarifas tiene {vector_tarifas.shape[0]} valores."
         )
 
@@ -118,34 +118,67 @@ def proyectar_demanda(historial_ventas):
     return demandas
 
 
-def detectar_riesgo_quiebre(stock, demandas):
+def verificar_despacho(stock_bodega, reposicion):
+    """
+    Revisa si el stock de la bodega alcanza para despachar lo pendiente
+    (SUMATORIA POR FILA).
+
+    Para cada producto se suma su fila de la matriz de despacho (todos los
+    clientes):
+        total_pendiente[i] = Σ R[i][j]
+    Si stock_bodega[i] < total_pendiente[i], no alcanza para cumplir todos
+    los pedidos de ese producto.
+
+    Parametros:
+        stock_bodega: vector con las unidades disponibles de cada producto.
+        reposicion: matriz de despacho pendiente productos x clientes.
+
+    Retorna:
+        Tupla (total_pendiente, faltantes): el total por despachar de cada
+        producto y cuantas unidades faltan en bodega (0 si alcanza).
+    """
+    vector_bodega = np.array(stock_bodega)
+    matriz_reposicion = np.array(reposicion)
+
+    # Debe haber un valor de bodega por cada producto (fila)
+    if matriz_reposicion.shape[0] != vector_bodega.shape[0]:
+        raise ValueError(
+            f"Hay {matriz_reposicion.shape[0]} productos en la matriz de despacho, "
+            f"pero {vector_bodega.shape[0]} valores de stock en bodega."
+        )
+
+    # Suma de cada fila (axis=1 significa "sumar a lo largo de las columnas")
+    total_pendiente = matriz_reposicion.sum(axis=1)
+
+    # Si la bodega tiene menos de lo pendiente, la diferencia es lo que falta
+    faltantes = np.maximum(total_pendiente - vector_bodega, 0)
+    return total_pendiente, faltantes
+
+
+def detectar_riesgo_quiebre(stock_bodega, demandas):
     """
     Detecta productos con riesgo de quiebre de stock.
 
-    Para cada producto se suma su fila de stock (todas las sucursales):
-        stock_total[i] = Σ S[i][j]
-    Si stock_total[i] < demanda proyectada[i], hay riesgo de quiebre.
+    Compara el stock de la bodega de cada producto con su demanda
+    proyectada: si stock_bodega[i] < demanda[i], hay riesgo de quiebre.
 
     Parametros:
-        stock: matriz productos x sucursales.
+        stock_bodega: vector con las unidades disponibles de cada producto.
         demandas: lista con la demanda proyectada de cada producto.
 
     Retorna:
         Lista de valores True/False (True = hay riesgo) en el orden de los productos.
     """
-    matriz_stock = np.array(stock)
+    vector_bodega = np.array(stock_bodega)
 
-    # Debe haber una demanda por cada producto (fila)
-    if matriz_stock.shape[0] != len(demandas):
+    # Debe haber una demanda por cada producto
+    if vector_bodega.shape[0] != len(demandas):
         raise ValueError(
-            f"Hay {matriz_stock.shape[0]} productos en el stock, pero "
+            f"Hay {vector_bodega.shape[0]} productos en bodega, pero "
             f"{len(demandas)} valores de demanda."
         )
 
-    # Suma de cada fila (axis=1 significa "sumar a lo largo de las columnas")
-    stock_total = matriz_stock.sum(axis=1)
-
     riesgos = []
     for i in range(len(demandas)):
-        riesgos.append(bool(stock_total[i] < demandas[i]))
+        riesgos.append(bool(vector_bodega[i] < demandas[i]))
     return riesgos

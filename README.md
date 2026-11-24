@@ -1,15 +1,17 @@
 # OptiMat
 
-Prototipo en Python que centraliza el inventario de una pyme de retail tecnológico
-con varias sucursales y calcula automáticamente cuántas unidades despachar a cada
-una y cuánto cuesta ese despacho. Usa datos de ejemplo (sin base de datos ni interfaz gráfica).
+Prototipo en Python para una pyme de retail tecnológico que vende desde una bodega
+a varios clientes. Calcula cuántas unidades faltan por despachar a cada cliente,
+cuánto cuesta ese despacho, si el stock de la bodega alcanza y qué productos
+tienen riesgo de quiebre de stock. Usa datos de ejemplo (sin base de datos ni interfaz gráfica).
 
 ## Archivos
 
-- `datos.py`: datos de ejemplo (productos, sucursales, capacidad, stock, tarifas, historial de ventas).
+- `datos.py`: datos de ejemplo (productos, clientes, pedidos, entregas, tarifas, stock en bodega, historial de ventas).
 - `calculos.py`: funciones matemáticas.
 - `main.py`: ejecuta todo e imprime el reporte.
 - `test_calculos.py`: pruebas con un caso pequeño calculado a mano.
+- `docs/`: tablas de la Etapa 2 en PDF y Word.
 
 ## Instalación y ejecución
 
@@ -29,7 +31,8 @@ python -m pytest
 
 | Función | Concepto | Qué hace |
 |---|---|---|
-| `calcular_reposicion` | Resta de matrices | R = Capacidad − Stock (filas = productos, columnas = sucursales) |
-| `calcular_costos` | Producto matriz × vector | Costos = R · t (t = tarifa de flete por sucursal); el total es la suma de las componentes |
+| `calcular_reposicion` | Resta de matrices | R = Pedidos − Entregado (filas = productos, columnas = clientes) |
+| `calcular_costos` | Producto matriz × vector | Costos = R · t (t = tarifa de flete por cliente); el total es la suma de las componentes |
+| `verificar_despacho` | Sumatoria por fila | Σ de lo pendiente de cada producto en todos los clientes, comparado con el stock en bodega |
 | `proyectar_demanda` | Sumatoria | Demanda = (1/n) · Σ ventas, calculada con un ciclo `for` acumulativo |
-| `detectar_riesgo_quiebre` | Sumatoria por fila | Si Σ stock del producto en todas las sucursales < demanda proyectada, hay riesgo de quiebre |
+| `detectar_riesgo_quiebre` | Comparación | Si el stock en bodega < demanda proyectada, hay riesgo de quiebre |
