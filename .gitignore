@@ -221,3 +221,12 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Editor
+.vscode/
+
+# Grafico generado por main.py
+alertas.png
+
+# Datos guardados por el menu interactivo
+optimat_datos.json
