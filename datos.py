@@ -77,8 +77,8 @@ VENTAS = [
     ],
 ]
 
-# UMBRALES del semaforo de stock, en DIAS DE COBERTURA (cuantos dias alcanza
-# el stock de la bodega al ritmo de venta actual).
-#   verde: 30 dias o mas | amarillo: desde 20 hasta menos de 30 | rojo: menos de 20
-UMBRAL_VERDE = 30
-UMBRAL_AMARILLO = 20
+# UMBRALES del semaforo de stock, en PORCENTAJE DE CUMPLIMIENTO
+# (stock en bodega dividido por lo pendiente de despachar, por 100).
+#   verde: 150 % o mas | amarillo: desde 100 % hasta menos de 150 % | rojo: menos de 100 %
+UMBRAL_VERDE = 150
+UMBRAL_AMARILLO = 100

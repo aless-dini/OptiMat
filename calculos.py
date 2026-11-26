@@ -218,54 +218,93 @@ def resumir_ventas(ventas):
     return ventas_por_mes, ventas_por_cliente
 
 
-def calcular_cobertura(stock_bodega, demandas, dias_por_mes=30):
+def calcular_cumplimiento(stock_bodega, total_pendiente):
     """
-    Calcula los dias de cobertura de cada producto: cuantos dias alcanza el
-    stock de la bodega al ritmo de venta actual (DIVISION / PROPORCION).
+    Calcula el porcentaje de cumplimiento de cada producto: cuanto stock hay
+    en bodega en relacion con lo que falta despachar a los clientes
+    (DIVISION DE VECTORES COMPONENTE A COMPONENTE / PORCENTAJE).
 
     Formula para cada producto:
-        venta_diaria = demanda_mensual / dias_por_mes
-        cobertura    = stock_bodega / venta_diaria
+        cumplimiento[i] = S[i] / T[i] * 100
 
-    Si un producto no tiene demanda, su stock nunca se agota (cobertura infinita).
+    donde S es el stock en bodega y T el total pendiente por despachar.
+        100 %  -> la bodega alcanza justo para cumplir.
+        > 100% -> sobra stock.
+        < 100% -> no alcanza para cumplir todos los pedidos.
+    Si un producto no tiene nada pendiente (T = 0) no se puede dividir;
+    se considera sin pedidos pendientes (infinito).
 
     Parametros:
-        stock_bodega: vector con las unidades disponibles de cada producto.
-        demandas: lista con la demanda mensual proyectada de cada producto.
-        dias_por_mes: cantidad de dias que se consideran en un mes.
+        stock_bodega: vector S con las unidades disponibles de cada producto.
+        total_pendiente: vector T con lo que falta despachar de cada producto.
 
     Retorna:
-        Lista con los dias de cobertura de cada producto.
+        Lista con el porcentaje de cumplimiento de cada producto.
     """
-    if len(stock_bodega) != len(demandas):
+    if len(stock_bodega) != len(total_pendiente):
         raise ValueError(
             f"Hay {len(stock_bodega)} productos en bodega, pero "
-            f"{len(demandas)} valores de demanda."
+            f"{len(total_pendiente)} valores pendientes."
         )
 
-    coberturas = []
-    for i in range(len(demandas)):
-        if demandas[i] <= 0:
-            coberturas.append(float("inf"))
+    porcentajes = []
+    for stock, pendiente in zip(stock_bodega, total_pendiente):
+        if pendiente <= 0:
+            porcentajes.append(float("inf"))
         else:
-            venta_diaria = demandas[i] / dias_por_mes
-            coberturas.append(stock_bodega[i] / venta_diaria)
-    return coberturas
+            porcentajes.append(float(stock / pendiente * 100))
+    return porcentajes
 
 
-def clasificar_alertas(coberturas, umbral_verde=30, umbral_amarillo=20):
+def calcular_pedido_sugerido(stock_bodega, total_pendiente, demandas):
     """
-    Clasifica cada producto en un semaforo segun sus dias de cobertura
-    (DESIGUALDADES):
+    Calcula cuantas unidades conviene comprar al proveedor de cada producto
+    (SUMA Y RESTA DE VECTORES y FUNCION MAXIMO).
 
-        VERDE    si cobertura >= umbral_verde
-        AMARILLO si umbral_amarillo <= cobertura < umbral_verde
-        ROJO     si cobertura < umbral_amarillo
+    La bodega debe alcanzar para dos cosas: despachar lo que ya se debe a los
+    clientes y cubrir lo que se proyecta vender el proximo mes. Para cada producto:
+
+        sugerido[i] = max(0, T[i] + D[i] - S[i])   (redondeado hacia arriba)
+
+    donde T es el total pendiente por despachar, D la demanda mensual
+    proyectada y S el stock en bodega. Si la bodega ya alcanza, se sugiere 0.
 
     Parametros:
-        coberturas: lista con los dias de cobertura de cada producto.
-        umbral_verde: dias desde los que el stock se considera suficiente.
-        umbral_amarillo: dias bajo los que el stock es critico.
+        stock_bodega: vector S con las unidades disponibles de cada producto.
+        total_pendiente: vector T con lo que falta despachar de cada producto.
+        demandas: vector D con la demanda mensual proyectada de cada producto.
+
+    Retorna:
+        Lista de enteros con las unidades sugeridas para cada producto.
+    """
+    if not (len(stock_bodega) == len(total_pendiente) == len(demandas)):
+        raise ValueError("Stock, pendiente y demanda deben tener un valor por producto.")
+
+    vector_bodega = np.array(stock_bodega, dtype=float)
+    vector_pendiente = np.array(total_pendiente, dtype=float)
+    vector_demanda = np.array(demandas, dtype=float)
+
+    # Suma y resta de vectores: lo que se necesita menos lo que hay
+    necesario = vector_pendiente + vector_demanda - vector_bodega
+
+    # Lo negativo (sobra stock) se cambia por 0 y se redondea hacia arriba
+    sugerido = np.ceil(np.maximum(necesario, 0))
+    return [int(u) for u in sugerido]
+
+
+def clasificar_alertas(cumplimientos, umbral_verde=150, umbral_amarillo=100):
+    """
+    Clasifica cada producto en un semaforo segun su porcentaje de
+    cumplimiento (DESIGUALDADES):
+
+        VERDE    si cumplimiento >= umbral_verde        (sobra stock con holgura)
+        AMARILLO si umbral_amarillo <= cumplimiento < umbral_verde  (alcanza justo)
+        ROJO     si cumplimiento < umbral_amarillo      (no alcanza para cumplir)
+
+    Parametros:
+        cumplimientos: lista con el porcentaje de cumplimiento de cada producto.
+        umbral_verde: porcentaje desde el que el stock se considera holgado.
+        umbral_amarillo: porcentaje bajo el que no se alcanzan a cumplir los pedidos.
 
     Retorna:
         Lista con "VERDE", "AMARILLO" o "ROJO" para cada producto.
@@ -274,10 +313,10 @@ def clasificar_alertas(coberturas, umbral_verde=30, umbral_amarillo=20):
         raise ValueError("El umbral amarillo debe ser menor que el umbral verde.")
 
     alertas = []
-    for dias in coberturas:
-        if dias >= umbral_verde:
+    for porcentaje in cumplimientos:
+        if porcentaje >= umbral_verde:
             alertas.append("VERDE")
-        elif dias >= umbral_amarillo:
+        elif porcentaje >= umbral_amarillo:
             alertas.append("AMARILLO")
         else:
             alertas.append("ROJO")

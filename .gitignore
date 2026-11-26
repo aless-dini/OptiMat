@@ -227,3 +227,6 @@ __marimo__/
 
 # Grafico generado por main.py
 alertas.png
+
+# Datos guardados por el menu interactivo
+optimat_datos.json

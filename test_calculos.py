@@ -73,7 +73,7 @@ def test_errores_de_dimensiones():
 
 # ---------------- Arreglo de 3 dimensiones, semaforo y grafico ----------------
 
-from calculos import resumir_ventas, calcular_cobertura, clasificar_alertas
+from calculos import resumir_ventas, calcular_cumplimiento, clasificar_alertas
 
 
 def test_resumir_ventas():
@@ -98,23 +98,39 @@ def test_resumir_ventas_exige_3_dimensiones():
         resumir_ventas([[1, 2, 3], [4, 5, 6]])
 
 
-def test_cobertura():
-    # Demanda 30 al mes = 1 por dia -> 15 unidades alcanzan 15 dias.
-    # Demanda 60 al mes = 2 por dia -> 90 unidades alcanzan 45 dias.
-    assert calcular_cobertura([15, 90], [30, 60]) == [15.0, 45.0]
-    # Sin demanda, el stock no se agota
-    assert calcular_cobertura([5], [0]) == [float("inf")]
+def test_cumplimiento():
+    # Bodega 30 y pendiente 20 -> 30/20*100 = 150 %
+    # Bodega 9 y pendiente 12  -> 9/12*100  = 75 % (no alcanza)
+    assert calcular_cumplimiento([30, 9], [20, 12]) == [150.0, 75.0]
+    # Sin pendientes no se divide por cero
+    assert calcular_cumplimiento([5], [0]) == [float("inf")]
+    with pytest.raises(ValueError):
+        calcular_cumplimiento([1, 2], [1])
 
 
 def test_clasificar_alertas_en_los_bordes():
-    # 30 es verde; 29.9 y 20 son amarillo; 19.9 es rojo
-    assert clasificar_alertas([30, 29.9, 20, 19.9]) == ["VERDE", "AMARILLO", "AMARILLO", "ROJO"]
+    # 150 es verde; 149.9 y 100 son amarillo; 99.9 es rojo; sin pendientes es verde
+    assert clasificar_alertas([150, 149.9, 100, 99.9, float("inf")]) ==         ["VERDE", "AMARILLO", "AMARILLO", "ROJO", "VERDE"]
     with pytest.raises(ValueError):
-        clasificar_alertas([10], umbral_verde=20, umbral_amarillo=30)
+        clasificar_alertas([10], umbral_verde=100, umbral_amarillo=150)
 
 
 def test_grafico_de_alertas(tmp_path):
     from graficos import graficar_alertas
     archivo = tmp_path / "alertas.png"
-    graficar_alertas(["A", "B", "C"], [40, 25, 10], ["VERDE", "AMARILLO", "ROJO"], archivo=str(archivo))
+    graficar_alertas(["A", "B", "C"], [200, 120, 75], ["VERDE", "AMARILLO", "ROJO"], archivo=str(archivo))
     assert archivo.exists() and archivo.stat().st_size > 0
+
+
+# ---------------- Pedido sugerido al proveedor ----------------
+
+from calculos import calcular_pedido_sugerido
+
+
+def test_pedido_sugerido():
+    # Producto 1: pendiente 10 + demanda 30 = 40 necesarios; hay 25 -> comprar 15
+    # Producto 2: pendiente 0 + demanda 20 = 20 necesarios; hay 50 -> comprar 0
+    # Producto 3: pendiente 1 + demanda 10.5 = 11.5 necesarios; hay 0 -> comprar 12 (hacia arriba)
+    assert calcular_pedido_sugerido([25, 50, 0], [10, 0, 1], [30, 20, 10.5]) == [15, 0, 12]
+    with pytest.raises(ValueError):
+        calcular_pedido_sugerido([1, 2], [1], [1, 2])
